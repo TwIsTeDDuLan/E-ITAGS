@@ -1,0 +1,37 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# pytest / test caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated outputs (visualizations, HTML dashboards, PNGs)
+outputs/
+
+# Jupyter
+.ipynb_checkpoints/

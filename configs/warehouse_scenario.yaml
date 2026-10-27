@@ -1,0 +1,82 @@
+# E-ITAGS Warehouse Scenario Configuration
+# Autonomous Forklift, Drone, and IW Hub Sorting System
+
+scenario_name: "Autonomous Warehouse Sorting & Transport"
+time_budget_seconds: 3600.0  # 1 hour shift
+
+robots:
+  - id: "R_FL1"
+    name: "Forklift-Alpha"
+    type: "forklift"
+    initial_zone: "staging"
+
+  - id: "R_DR1"
+    name: "Drone-SkyEye"
+    type: "drone"
+    initial_zone: "staging"
+
+  - id: "R_IW1"
+    name: "IWHub-FloorRunner"
+    type: "iw_hub"
+    initial_zone: "staging"
+
+tasks:
+  - id: "T1"
+    name: "Heavy High-Rack Transfer"
+    zone: "receiving"
+    duration_seconds: 180.0
+    description: "Transfer 850kg pallet from high rack to staging area"
+    requirements:
+      min_payload_kg: 850.0
+      min_has_lidar_2d: 1.0
+      min_has_camera_rgb: 0.0
+      min_vertical_lift: 1.0
+      min_narrow_space_access: 0.0
+
+  - id: "T2"
+    name: "Overhead Aisle Survey"
+    zone: "sorting"
+    duration_seconds: 90.0
+    description: "Visual inspection and barcode inventory scanning of aisle racks"
+    requirements:
+      min_payload_kg: 0.0
+      min_has_lidar_2d: 0.0
+      min_has_camera_rgb: 1.0
+      min_vertical_lift: 0.0
+      min_narrow_space_access: 0.0
+
+  - id: "T3"
+    name: "Tight-Space Floor Stack Move"
+    zone: "narrow_aisle"
+    duration_seconds: 150.0
+    description: "Extract 700kg pallet stack from narrow low-clearance floor zone"
+    requirements:
+      min_payload_kg: 700.0
+      min_has_lidar_2d: 1.0
+      min_has_camera_rgb: 0.0
+      min_vertical_lift: 0.0
+      min_narrow_space_access: 1.0
+
+  - id: "T4"
+    name: "Collaborative Pallet Sort"
+    zone: "sorting"
+    duration_seconds: 240.0
+    description: "Forklift pallet lift guided simultaneously by aerial drone inspection"
+    requirements:
+      min_payload_kg: 800.0
+      min_has_lidar_2d: 1.0
+      min_has_camera_rgb: 1.0
+      min_vertical_lift: 1.0
+      min_narrow_space_access: 0.0
+
+  - id: "T5"
+    name: "Narrow Aisle Inventory Dock"
+    zone: "narrow_aisle"
+    duration_seconds: 120.0
+    description: "Floor AMR docking with visual verification"
+    requirements:
+      min_payload_kg: 500.0
+      min_has_lidar_2d: 1.0
+      min_has_camera_rgb: 0.5
+      min_vertical_lift: 0.0
+      min_narrow_space_access: 1.0
