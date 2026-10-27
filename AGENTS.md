@@ -30,16 +30,19 @@ E-ITAGS/
 ├── demo_phase1.py              # Phase 0 & 1 demo (trait aggregation & satisfaction)
 ├── demo_multi_robot.py         # Multi-robot fleet demo (6 robots, 41 coalitions)
 ├── demo_phase2_3.py            # Phase 2 & 3 demo (A* motion planning & timeline scheduling)
+├── demo_phase4_5.py            # Phase 4 & 5 demo (heuristics, graph search & Pareto sweep)
 ├── configs/
 │   ├── warehouse_scenario.yaml       # Base scenario: 3 robots + 5 tasks
 │   └── warehouse_scenario_multi.yaml # Multi-robot scenario: 6 robots + 7 tasks
 ├── src/
 │   ├── __init__.py             # Package root (__version__ = "0.1.0")
 │   ├── core/
-│   │   ├── __init__.py         # Exports TraitEngine, MotionPlanner, Schedule
+│   │   ├── __init__.py         # Exports TraitEngine, MotionPlanner, Schedule, Search
 │   │   ├── trait_engine.py     # Coalition enumeration, satisfaction scoring, realizability
 │   │   ├── motion_planner.py   # A* grid motion planning, drone flight, zone routing
-│   │   └── scheduler.py        # Timeline scheduling, Gantt entries, rendezvous sync
+│   │   ├── scheduler.py        # Timeline scheduling, Gantt entries, rendezvous sync
+│   │   ├── heuristics.py       # Dual-objective NAC and TBO heuristic engine
+│   │   └── graph_search.py     # Interleaved ITAGS graph search, A* branch pruning
 │   ├── models/
 │   │   ├── __init__.py         # Exports all model classes
 │   │   ├── robot.py            # Robot, RobotTraits, RobotType, TRAIT_NAMES, ZONE_ACCESS
@@ -50,13 +53,16 @@ E-ITAGS/
 │   │   ├── __init__.py         # Exports TerminalDisplay
 │   │   └── display.py          # Rich terminal output tables and matrices
 │   └── visualization/
-│       ├── __init__.py         # Exports WarehouseVisualizer, ScheduleVisualizer
+│       ├── __init__.py         # Exports WarehouseVisualizer, ScheduleVisualizer, SearchTreeVisualizer
 │       ├── warehouse_viz.py    # Matplotlib 2D floor-map and path rendering
-│       └── schedule_viz.py     # Matplotlib Gantt chart and fleet utilization rendering
+│       ├── schedule_viz.py     # Matplotlib Gantt chart and fleet utilization rendering
+│       └── search_tree_viz.py  # NetworkX search tree and Pareto frontier rendering
 ├── tests/
 │   ├── test_traits.py          # Unit tests for models, coalitions, trait engine, zones
 │   ├── test_motion_planner.py  # Unit tests for A* planner, drone flight, zone routing
 │   ├── test_scheduler.py       # Unit tests for timeline scheduler, Gantt, utilization
+│   ├── test_heuristics.py      # Unit tests for NAC, TBO, and trade-off weighting
+│   ├── test_graph_search.py    # Unit tests for interleaved graph search & Pareto sweep
 │   └── test_warehouse_viz.py   # Unit tests for warehouse and dashboard visualizers
 └── outputs/                    # Exported visualization maps, charts, and diagrams
 ```
@@ -268,7 +274,7 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
 
 ## 8. Development Status & Roadmap
 
-### Current: Phase 0, 1, 2, and 3 (Complete)
+### Current: Phase 0, 1, 2, 3, 4, and 5 (Complete)
 - ✅ **Phase 0 & 1: Models & Trait Reasoning**:
   - Robot, Task, Coalition data models with 6D trait vectors
   - Trait aggregation with domain-specific physics rules
@@ -291,19 +297,22 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
   - Hard task deadline and overall time budget checking
   - Gantt chart generation with travel and execution intervals
   - Fleet workload & resource utilization breakdown
-  - 33/33 Unit tests passing (`pytest -v`)
+- ✅ **Phase 4: Dual-Objective Heuristics**:
+  - Normalized Allocation Cost (NAC) with admissible optimistic upper bounds
+  - Time Budget Overrun (TBO) for schedule deadline penalties
+  - Tunable weighting $w \in [0, 1]$ balancing efficacy vs makespan
+- ✅ **Phase 5: Interleaved ITAGS Graph Search**:
+  - Interleaved search tree simultaneously solving allocation and scheduling
+  - Most-constrained-task-first dynamic ordering
+  - Real-time pruning of inaccessible zones, deadlines, and schedule conflicts
+  - NetworkX hierarchical search tree visualization
+  - Pareto frontier sweep across tradeoff weights $w$
+  - 45/45 Unit tests passing (`pytest -v`)
 
 ### Next Phases to Implement:
-- **Phase 4**: Dual-Objective Heuristics:
-  - Normalized Allocation Cost (NAC) for trait matching efficacy
-  - Time Budget Overrun (TBO) for schedule penalty
-  - Tunable weighting $w \in [0, 1]$ balancing efficacy vs makespan
-- **Phase 5**: Interleaved ITAGS Graph Search:
-  - Branching search tree combining allocation and scheduling
-  - Most-constrained-task selection heuristic
-  - Real-time pruning of infeasible branches
-- **Phase 6**: Trait-Efficacy Functions & Quality-Optimized Allocation
-- **Phase 7**: Realizability-Aware Active Learning with Gaussian Processes
+- **Phase 6**: Trait-Efficacy Functions & Quality-Optimized Allocation (Moving from discrete satisfactions to continuous trait-efficacy maps $\phi_j(Q)$)
+- **Phase 7**: Realizability-Aware Active Learning with Gaussian Processes (GP regression over the discrete physical trait set $\Omega$)
+- **Phase 8**: Full System Benchmarking & Comparative Experiments
 
 ---
 
