@@ -91,3 +91,8 @@ class Coalition:
         names = "+".join(r.name for r in self.members)
         return f"[{names}]" if names else "[]"
 
+    def __lt__(self, other: Coalition) -> bool:
+        if not isinstance(other, Coalition):
+            return NotImplemented
+        return (len(self.members), self.robot_ids) < (len(other.members), other.robot_ids)
+

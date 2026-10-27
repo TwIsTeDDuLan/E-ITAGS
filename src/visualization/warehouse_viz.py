@@ -545,3 +545,74 @@ class WarehouseVisualizer:
             plt.show()
 
         return fig
+
+    def render_motion_paths(
+        self,
+        paths: Dict[str, Any],
+        robots: Optional[List[Robot]] = None,
+        tasks: Optional[List[Task]] = None,
+        save_path: Optional[str | Path] = None,
+        title: str = "A* Motion Planning & Spatial Trajectories",
+        show: bool = False,
+    ) -> plt.Figure:
+        """Render warehouse floor map overlaid with planned A* robot paths."""
+        fig, ax = plt.subplots(figsize=(13, 8.5))
+        self._render_map_on_axis(ax, robots=robots, tasks=tasks)
+
+        # Draw warehouse obstacles if any
+        if self.warehouse.obstacles:
+            for ox, oy in self.warehouse.obstacles:
+                rect = patches.Rectangle(
+                    (ox, oy), 1.0, 1.0,
+                    facecolor="#334155", edgecolor="#0F172A", alpha=0.85
+                )
+                ax.add_patch(rect)
+
+        # Path colors per robot archetype
+        path_styles = {
+            RobotType.FORKLIFT: {"color": "#2563EB", "linestyle": "-", "linewidth": 2.6, "label_prefix": "Forklift"},
+            RobotType.DRONE: {"color": "#7C3AED", "linestyle": "--", "linewidth": 2.2, "label_prefix": "Drone (Aerial)"},
+            RobotType.IW_HUB: {"color": "#059669", "linestyle": "-.", "linewidth": 2.4, "label_prefix": "IW Hub"},
+        }
+
+        for label, path_res in paths.items():
+            if not path_res.success or not path_res.path:
+                continue
+
+            r_type = path_res.robot_type
+            style = path_styles.get(r_type, {"color": "#E11D48", "linestyle": "-", "linewidth": 2.0, "label_prefix": label})
+
+            xs = [loc.x + 0.5 for loc in path_res.path]
+            ys = [loc.y + 0.5 for loc in path_res.path]
+
+            legend_lbl = f"{label} ({style['label_prefix']}): {path_res.distance:.1f}m, {path_res.travel_time:.1f}s"
+            ax.plot(
+                xs, ys,
+                color=style["color"],
+                linestyle=style["linestyle"],
+                linewidth=style["linewidth"],
+                alpha=0.9,
+                label=legend_lbl,
+                zorder=6,
+            )
+
+            # Start and End markers
+            ax.scatter(xs[0], ys[0], color=style["color"], s=70, marker="o", edgecolors="white", linewidth=1.5, zorder=7)
+            ax.scatter(xs[-1], ys[-1], color=style["color"], s=90, marker="*", edgecolors="white", linewidth=1.5, zorder=7)
+
+        ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
+        ax.set_xlabel("X (meters)", fontsize=10)
+        ax.set_ylabel("Y (meters)", fontsize=10)
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=2, fontsize=9.5)
+
+        plt.tight_layout()
+        if save_path:
+            p = Path(save_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(p, dpi=150, bbox_inches="tight")
+            print(f"Saved motion paths visualization to: {save_path}")
+
+        if show:
+            plt.show()
+
+        return fig

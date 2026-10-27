@@ -79,6 +79,47 @@ class WarehouseGrid:
             cells=[Location(x, y) for x in range(18, 27) for y in range(2, 9)],
         )
 
+        self._build_cell_lookup()
+
+    def _build_cell_lookup(self) -> None:
+        """Cache (x, y) -> zone_name mapping for fast spatial queries."""
+        self._cell_to_zone: Dict[Tuple[int, int], str] = {}
+        for z_name, zone in self.zones.items():
+            for cell in zone.cells:
+                self._cell_to_zone[(cell.x, cell.y)] = z_name
+
+    def get_zone_at(self, loc: Location | Tuple[int, int]) -> Optional[str]:
+        """Return the zone name containing the given location, or None if in transit corridor."""
+        if isinstance(loc, Location):
+            coord = (loc.x, loc.y)
+        else:
+            coord = loc
+        return self._cell_to_zone.get(coord)
+
+    def add_obstacle(self, x: int, y: int) -> None:
+        """Add an impassable cell obstacle."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.obstacles.add((x, y))
+
+    def add_obstacles(self, coords: list[Tuple[int, int]]) -> None:
+        """Add multiple obstacle coordinates."""
+        for x, y in coords:
+            self.add_obstacle(x, y)
+
+    def add_default_warehouse_racks(self) -> None:
+        """Add standard central warehouse storage racks that robots navigate around.
+        
+        Creates two central rack blocks with wide transit aisles:
+        - Upper rack: x in [12, 15], y in [12, 17]
+        - Lower rack: x in [12, 15], y in [3, 8]
+        Leaves open aisles along y=0..2, y=9..11, y=18..19 and central corridor at x=10..11, 16..17.
+        """
+        for x in range(12, 16):
+            for y in range(12, 18):
+                self.add_obstacle(x, y)
+            for y in range(3, 9):
+                self.add_obstacle(x, y)
+
     def get_zone_center(self, zone_name: str) -> Location:
         if zone_name not in self.zones:
             raise KeyError(f"Unknown warehouse zone: '{zone_name}'. Available: {list(self.zones.keys())}")

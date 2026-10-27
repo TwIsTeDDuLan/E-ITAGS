@@ -27,30 +27,38 @@ E-ITAGS/
 ├── pyproject.toml              # Build config, dependencies, pytest settings
 ├── requirements.txt            # Pip-installable dependencies
 ├── conftest.py                 # Pytest root config (adds project root to sys.path)
-├── demo_phase1.py              # Main demo entry point (Phase 0 & 1 walkthrough)
+├── demo_phase1.py              # Phase 0 & 1 demo (trait aggregation & satisfaction)
+├── demo_multi_robot.py         # Multi-robot fleet demo (6 robots, 41 coalitions)
+├── demo_phase2_3.py            # Phase 2 & 3 demo (A* motion planning & timeline scheduling)
 ├── configs/
-│   └── warehouse_scenario.yaml # Scenario definition: robots + tasks + requirements
+│   ├── warehouse_scenario.yaml       # Base scenario: 3 robots + 5 tasks
+│   └── warehouse_scenario_multi.yaml # Multi-robot scenario: 6 robots + 7 tasks
 ├── src/
 │   ├── __init__.py             # Package root (__version__ = "0.1.0")
 │   ├── core/
-│   │   ├── __init__.py         # Exports TraitEngine
-│   │   └── trait_engine.py     # Coalition enumeration, satisfaction scoring, realizability
+│   │   ├── __init__.py         # Exports TraitEngine, MotionPlanner, Schedule
+│   │   ├── trait_engine.py     # Coalition enumeration, satisfaction scoring, realizability
+│   │   ├── motion_planner.py   # A* grid motion planning, drone flight, zone routing
+│   │   └── scheduler.py        # Timeline scheduling, Gantt entries, rendezvous sync
 │   ├── models/
 │   │   ├── __init__.py         # Exports all model classes
-│   │   ├── robot.py            # Robot, RobotTraits, RobotType, TRAIT_NAMES
+│   │   ├── robot.py            # Robot, RobotTraits, RobotType, TRAIT_NAMES, ZONE_ACCESS
 │   │   ├── task.py             # Task, TaskRequirements
-│   │   ├── coalition.py        # Coalition (frozen, hashable robot subset)
-│   │   └── warehouse.py        # WarehouseGrid, WarehouseZone, Location
+│   │   ├── coalition.py        # Coalition (frozen, hashable, sorted comparison)
+│   │   └── warehouse.py        # WarehouseGrid, WarehouseZone, Location, obstacles
 │   ├── utils/
 │   │   ├── __init__.py         # Exports TerminalDisplay
 │   │   └── display.py          # Rich terminal output tables and matrices
 │   └── visualization/
-│       ├── __init__.py         # Exports WarehouseVisualizer
-│       └── warehouse_viz.py    # Matplotlib 2D floor-map rendering
+│       ├── __init__.py         # Exports WarehouseVisualizer, ScheduleVisualizer
+│       ├── warehouse_viz.py    # Matplotlib 2D floor-map and path rendering
+│       └── schedule_viz.py     # Matplotlib Gantt chart and fleet utilization rendering
 ├── tests/
-│   └── test_traits.py          # Unit tests for models, coalitions, trait engine
-└── outputs/
-    └── warehouse_map.png       # Generated warehouse visualization artifact
+│   ├── test_traits.py          # Unit tests for models, coalitions, trait engine, zones
+│   ├── test_motion_planner.py  # Unit tests for A* planner, drone flight, zone routing
+│   ├── test_scheduler.py       # Unit tests for timeline scheduler, Gantt, utilization
+│   └── test_warehouse_viz.py   # Unit tests for warehouse and dashboard visualizers
+└── outputs/                    # Exported visualization maps, charts, and diagrams
 ```
 
 ---
@@ -260,23 +268,42 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
 
 ## 8. Development Status & Roadmap
 
-### Current: Phase 0 & 1 (Complete)
-- ✅ Robot, Task, Coalition data models with trait vectors
-- ✅ Trait aggregation with domain-specific physics rules
-- ✅ Coalition enumeration up to configurable max size
-- ✅ Trait satisfaction scoring (hard + soft constraints)
-- ✅ Realizability verification (brute-force enumeration)
-- ✅ Terminal display utilities for transparency
-- ✅ 2D warehouse visualization
-- ✅ YAML-based scenario configuration
-- ✅ Unit test suite
+### Current: Phase 0, 1, 2, and 3 (Complete)
+- ✅ **Phase 0 & 1: Models & Trait Reasoning**:
+  - Robot, Task, Coalition data models with 6D trait vectors
+  - Trait aggregation with domain-specific physics rules
+  - Physical zone access constraints per robot archetype
+  - Coalition enumeration up to configurable max size
+  - Trait satisfaction scoring (hard + soft constraints)
+  - Realizability verification (discrete physical formability check)
+  - Terminal display utilities for inspection
+  - 2D warehouse visualization & interactive HTML dashboards
+- ✅ **Phase 2: A* Motion Planning**:
+  - Grid-based A* graph search with diagonal corner-cutting prevention
+  - Physical obstacle navigation (central warehouse storage racks)
+  - Zone-constrained routing (forklifts route around narrow aisles)
+  - 3D aerial direct flight for drones at 5.0 m/s
+  - Precomputed zone-to-zone fleet travel time matrices
+  - Path memoization/caching for high-speed graph expansion
+- ✅ **Phase 3: Timeline Scheduling & Synchronization**:
+  - Multi-robot timeline manager tracking robot availability and locations
+  - Coalition synchronized rendezvous arrivals
+  - Hard task deadline and overall time budget checking
+  - Gantt chart generation with travel and execution intervals
+  - Fleet workload & resource utilization breakdown
+  - 33/33 Unit tests passing (`pytest -v`)
 
-### Future Phases (Not Yet Implemented)
-- **Phase 2**: ITAGS graph search with task allocation
-- **Phase 3**: Efficacy learning via Gaussian Processes (uses `scikit-learn`)
-- **Phase 4**: Active learning for realizability-aware optimization
-- **Phase 5**: Temporal scheduling with deadlines and release times
-- `networkx` and `scikit-learn` are declared as dependencies but not yet used in code
+### Next Phases to Implement:
+- **Phase 4**: Dual-Objective Heuristics:
+  - Normalized Allocation Cost (NAC) for trait matching efficacy
+  - Time Budget Overrun (TBO) for schedule penalty
+  - Tunable weighting $w \in [0, 1]$ balancing efficacy vs makespan
+- **Phase 5**: Interleaved ITAGS Graph Search:
+  - Branching search tree combining allocation and scheduling
+  - Most-constrained-task selection heuristic
+  - Real-time pruning of infeasible branches
+- **Phase 6**: Trait-Efficacy Functions & Quality-Optimized Allocation
+- **Phase 7**: Realizability-Aware Active Learning with Gaussian Processes
 
 ---
 
