@@ -78,7 +78,7 @@ def main():
         "Dual-Objective Heuristics (NAC+TBO) and Interleaved Graph Search"
     )
 
-    config_path = Path(__file__).parent / "configs" / "warehouse_scenario.yaml"
+    config_path = Path(__file__).parent / "configs" / "warehouse_scenario_multi.yaml"
     scenario_name, time_budget, robots, tasks = load_scenario(config_path)
 
     print(f"\n📂 Loaded Scenario: '{scenario_name}'")

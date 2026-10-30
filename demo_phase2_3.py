@@ -79,7 +79,7 @@ def main():
     )
 
     # 1. Load Scenario
-    config_path = Path(__file__).parent / "configs" / "warehouse_scenario.yaml"
+    config_path = Path(__file__).parent / "configs" / "warehouse_scenario_multi.yaml"
     scenario_name, robots, tasks = load_demo_scenario(config_path)
 
     print(f"\n📂 Scenario: '{scenario_name}'")

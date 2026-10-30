@@ -58,7 +58,7 @@ def main():
         "Autonomous Forklift, Drone & IW Hub Sorting System"
     )
 
-    config_path = Path(__file__).parent / "configs" / "warehouse_scenario.yaml"
+    config_path = Path(__file__).parent / "configs" / "warehouse_scenario_multi.yaml"
     scenario_name, robots, tasks = load_scenario(config_path)
 
     print(f"\n📂 Loaded Scenario: '{scenario_name}' from {config_path.name}")

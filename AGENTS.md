@@ -31,6 +31,8 @@ E-ITAGS/
 ├── demo_multi_robot.py         # Multi-robot fleet demo (6 robots, 41 coalitions)
 ├── demo_phase2_3.py            # Phase 2 & 3 demo (A* motion planning & timeline scheduling)
 ├── demo_phase4_5.py            # Phase 4 & 5 demo (heuristics, graph search & Pareto sweep)
+├── demo_phase6_7.py            # Phase 6 & 7 demo (continuous efficacy & active learning)
+├── demo_benchmark.py           # Phase 8 master demo (benchmark suite & publication figures)
 ├── configs/
 │   ├── warehouse_scenario.yaml       # Base scenario: 3 robots + 5 tasks
 │   └── warehouse_scenario_multi.yaml # Multi-robot scenario: 6 robots + 7 tasks
@@ -43,6 +45,13 @@ E-ITAGS/
 │   │   ├── scheduler.py        # Timeline scheduling, Gantt entries, rendezvous sync
 │   │   ├── heuristics.py       # Dual-objective NAC and TBO heuristic engine
 │   │   └── graph_search.py     # Interleaved ITAGS graph search, A* branch pruning
+│   ├── experiments/
+│   │   ├── __init__.py         # Exports BenchmarkSuite, results dataclasses
+│   │   └── benchmark_suite.py  # Experiments 1-5 reproducing Paper Section 6
+│   ├── learning/
+│   │   ├── __init__.py         # Exports EfficacyMap, Oracle, ActiveLearner, GP
+│   │   ├── efficacy_map.py     # Continuous trait-efficacy maps & warehouse oracle
+│   │   └── active_learner.py   # GP regression, RealizabilityProjector, 4 sampling strategies
 │   ├── models/
 │   │   ├── __init__.py         # Exports all model classes
 │   │   ├── robot.py            # Robot, RobotTraits, RobotType, TRAIT_NAMES, ZONE_ACCESS
@@ -53,18 +62,22 @@ E-ITAGS/
 │   │   ├── __init__.py         # Exports TerminalDisplay
 │   │   └── display.py          # Rich terminal output tables and matrices
 │   └── visualization/
-│       ├── __init__.py         # Exports WarehouseVisualizer, ScheduleVisualizer, SearchTreeVisualizer
+│       ├── __init__.py         # Exports all visualizers
 │       ├── warehouse_viz.py    # Matplotlib 2D floor-map and path rendering
 │       ├── schedule_viz.py     # Matplotlib Gantt chart and fleet utilization rendering
-│       └── search_tree_viz.py  # NetworkX search tree and Pareto frontier rendering
+│       ├── search_tree_viz.py  # NetworkX search tree and Pareto frontier rendering
+│       ├── efficacy_viz.py     # 2D/3D efficacy surfaces and GP uncertainty plots
+│       └── benchmark_viz.py    # Publication-grade figures (Figs 5-12, consolidated summary)
 ├── tests/
 │   ├── test_traits.py          # Unit tests for models, coalitions, trait engine, zones
 │   ├── test_motion_planner.py  # Unit tests for A* planner, drone flight, zone routing
 │   ├── test_scheduler.py       # Unit tests for timeline scheduler, Gantt, utilization
 │   ├── test_heuristics.py      # Unit tests for NAC, TBO, and trade-off weighting
 │   ├── test_graph_search.py    # Unit tests for interleaved graph search & Pareto sweep
-│   └── test_warehouse_viz.py   # Unit tests for warehouse and dashboard visualizers
-└── outputs/                    # Exported visualization maps, charts, and diagrams
+│   ├── test_warehouse_viz.py   # Unit tests for warehouse and dashboard visualizers
+│   ├── test_learning.py        # Unit tests for GP fitting, projection, and UCB
+│   └── test_benchmark.py       # Unit tests for Experiments 1-5 & publication figures
+└── outputs/                    # Exported visualization maps, charts, and publication figures
 ```
 
 ---
@@ -274,7 +287,7 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
 
 ## 8. Development Status & Roadmap
 
-### Current: Phase 0, 1, 2, 3, 4, and 5 (Complete)
+### Current: Phases 0 through 8 Complete & Verified (60/60 Unit Tests Passing)
 - ✅ **Phase 0 & 1: Models & Trait Reasoning**:
   - Robot, Task, Coalition data models with 6D trait vectors
   - Trait aggregation with domain-specific physics rules
@@ -307,12 +320,25 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
   - Real-time pruning of inaccessible zones, deadlines, and schedule conflicts
   - NetworkX hierarchical search tree visualization
   - Pareto frontier sweep across tradeoff weights $w$
-  - 45/45 Unit tests passing (`pytest -v`)
-
-### Next Phases to Implement:
-- **Phase 6**: Trait-Efficacy Functions & Quality-Optimized Allocation (Moving from discrete satisfactions to continuous trait-efficacy maps $\phi_j(Q)$)
-- **Phase 7**: Realizability-Aware Active Learning with Gaussian Processes (GP regression over the discrete physical trait set $\Omega$)
-- **Phase 8**: Full System Benchmarking & Comparative Experiments
+- ✅ **Phase 6: Continuous Trait-Efficacy Modeling**:
+  - Non-linear trait-efficacy mapping $\xi_m : \mathbb{R}^U \to [0, 1]$
+  - Physics-informed simulation oracle (`GroundTruthEfficacyOracle`) with sigmoid payload dynamics, camera quality scaling, and multi-robot aerial-ground synergy bonuses
+  - Response surface visualization and 2D realizability manifold overlay
+- ✅ **Phase 7: Realizability-Aware Active Learning with Gaussian Processes**:
+  - Gaussian Process regression (`LearnedEfficacyGP`) with Matern 5/2 ARD kernel
+  - 4 acquisition sampling strategies (`EXACT`, `BOX`, `UNCONSTRAINED`, `RANDOM`)
+  - Euclidean realizability projection onto discrete physical formable set $\Omega$
+  - Active learning convergence curves and GP posterior epistemic uncertainty ($\mu \pm 2\sigma$)
+  - Closed-loop search integration driven by learned GP models
+- ✅ **Phase 8: Full System Benchmarking & Comparative Experiments**:
+  - Reproducing and validating the core experiments of Paper Section 6
+  - **Exp 1**: E-ITAGS vs. ITAGS baseline under equivalent makespan budgets (Figs 5 & 6)
+  - **Exp 2**: Empirical validation of theoretical suboptimality bounds on optimality gaps (Fig 7)
+  - **Exp 3**: Cumulative regret, Best Uncovered Reward (BUR), and step runtime scaling (Figs 9, 10, 11)
+  - **Exp 4**: Downstream closed-loop task allocation efficacy under learned GP models (Fig 12)
+  - **Exp 5**: Multi-robot warehouse scalability stress test across 3 to 8 robots
+  - Consolidated publication-grade multi-panel summary figure (`outputs/e_itags_comprehensive_paper_figure.png`)
+  - 60/60 Unit tests passing (`pytest -v`)
 
 ---
 
