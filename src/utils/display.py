@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Tuple
 from ..models.robot import Robot, TRAIT_NAMES
 from ..models.task import Task
 from ..models.coalition import Coalition
+from ..models.warehouse import WarehouseGrid
 from ..core.trait_engine import TraitEngine
 
 
@@ -96,3 +97,24 @@ class TerminalDisplay:
             print(f"{str(c):<30} | " + " | ".join(row_items))
         print("-" * (32 + 13 * len(tasks)))
         print("Legend: [✓] Satisfies all requirements | [~] Partial match | [✗] Hard constraint violation")
+
+    @staticmethod
+    def display_warehouse_grid(
+        warehouse: WarehouseGrid,
+        robot_positions: Any = None,
+        task_positions: Any = None,
+        path: Any = None,
+        show_legend: bool = True,
+        show_coordinates: bool = True,
+        use_color: bool = True,
+    ) -> None:
+        """Display an ASCII/Unicode 2D floor map of the warehouse grid."""
+        warehouse.print_grid(
+            robot_positions=robot_positions,
+            task_positions=task_positions,
+            path=path,
+            show_legend=show_legend,
+            show_coordinates=show_coordinates,
+            use_color=use_color,
+        )
+

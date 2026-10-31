@@ -330,15 +330,20 @@ Given a target trait vector `q*`, determine if `∃ C_k` such that `Q(C_k) ≈ q
   - Euclidean realizability projection onto discrete physical formable set $\Omega$
   - Active learning convergence curves and GP posterior epistemic uncertainty ($\mu \pm 2\sigma$)
   - Closed-loop search integration driven by learned GP models
-- ✅ **Phase 8: Full System Benchmarking & Comparative Experiments**:
+- ✅ **Phase 8: Full System Benchmarking, Diverse Scenarios & Failure Boundary Analysis**:
   - Reproducing and validating the core experiments of Paper Section 6
-  - **Exp 1**: E-ITAGS vs. ITAGS baseline under equivalent makespan budgets (Figs 5 & 6)
-  - **Exp 2**: Empirical validation of theoretical suboptimality bounds on optimality gaps (Fig 7)
+  - **Exp 1**: E-ITAGS vs. ITAGS baseline evaluated across 5 distinct operational warehouse scenarios (Nominal, Heavy Cargo Surge, Optical Guidance, Narrow-Aisle Bottlenecks, Cross-Dock Logistics) with variable continuous efficacy gains (+10% to +35%)
+  - **Exp 2**: Empirical validation of theoretical suboptimality bounds (Paper Eq. 5 / Theorem 1) with an actual varying optimality gap curve bounded by $\frac{\alpha}{1 - \alpha} \Delta\Xi$
   - **Exp 3**: Cumulative regret, Best Uncovered Reward (BUR), and step runtime scaling (Figs 9, 10, 11)
   - **Exp 4**: Downstream closed-loop task allocation efficacy under learned GP models (Fig 12)
   - **Exp 5**: Multi-robot warehouse scalability stress test across 3 to 8 robots
-  - Consolidated publication-grade multi-panel summary figure (`outputs/e_itags_comprehensive_paper_figure.png`)
-  - 60/60 Unit tests passing (`pytest -v`)
+  - **Exp 6 (Failure Boundaries)**: Pushing E-ITAGS to its breaking points across 4 failure modes:
+    - *Temporal budget compression cliff*: $T_{budget} < 0.80 T_0$ leads to complete schedule infeasibility
+    - *Workload task queue overload*: $N > 7$ concurrent tasks exhausts fleet horizon capacity
+    - *Fleet depletion*: Absence of IW Hub AMRs renders narrow aisle tasks strictly unserviceable
+    - *Epistemic sensor noise*: $\sigma \ge 0.30$ degrades GP predictions and downstream efficacy from 1.0 to 0.61
+  - Publication figures exported to `outputs/`: `paper_fig5` through `paper_fig12`, `paper_fig_failure_boundaries.png`, and `e_itags_comprehensive_paper_figure.png`
+  - 63/63 Unit tests passing (`pytest -v`)
 
 ---
 

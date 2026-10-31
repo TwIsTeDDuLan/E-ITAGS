@@ -6,6 +6,7 @@ from .benchmark_suite import (
     ActiveLearningBenchmarkResult,
     ClosedLoopBenchmarkResult,
     ScalabilityBenchmarkResult,
+    FailureBoundaryResult,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "ActiveLearningBenchmarkResult",
     "ClosedLoopBenchmarkResult",
     "ScalabilityBenchmarkResult",
+    "FailureBoundaryResult",
 ]

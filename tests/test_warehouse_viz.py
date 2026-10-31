@@ -83,3 +83,43 @@ def test_warehouse_viz_comprehensive_dashboard(scenario_setup):
     assert isinstance(fig, plt.Figure)
     assert save_path.exists()
     plt.close(fig)
+
+
+def test_warehouse_grid_printer(scenario_setup):
+    """Test text-based warehouse grid printer with and without overlays."""
+    from src.models.warehouse import print_warehouse_grid, render_warehouse_grid, Location
+    from src.utils.display import TerminalDisplay
+
+    viz, robots, tasks, _ = scenario_setup
+    warehouse = viz.warehouse
+    warehouse.add_default_warehouse_racks()
+
+    # Test basic grid render without color
+    rendered_no_color = render_warehouse_grid(warehouse, use_color=False)
+    assert "WAREHOUSE GRID FLOOR MAP" in rendered_no_color
+    assert "Receiving Dock" in rendered_no_color
+    assert "██" in rendered_no_color
+    assert "R*" in rendered_no_color
+
+    # Test with color and overlays
+    robot_map = {"FL": Location(5, 7), "DR": Location(4, 15)}
+    task_map = {"T1": Location(4, 15)}
+    path = [Location(5, 7), Location(5, 8), Location(5, 9)]
+
+    rendered_colored = warehouse.render_grid(
+        robot_positions=robot_map,
+        task_positions=task_map,
+        path=path,
+        use_color=True,
+    )
+    assert "WAREHOUSE GRID FLOOR MAP" in rendered_colored
+    assert "FL" in rendered_colored
+    assert "T1" in rendered_colored
+
+    # Test print functions execute without error
+    out1 = warehouse.print_grid(use_color=False)
+    assert isinstance(out1, str)
+    assert len(out1) > 0
+
+    TerminalDisplay.display_warehouse_grid(warehouse, use_color=False)
+

@@ -307,9 +307,10 @@ class ITAGSSearch:
                     efficacy_fn=efficacy_fn,
                 )
 
-                # g-cost accumulates assignment cost: 1 - satisfaction
+                # g-cost accumulates assignment cost: 1 - satisfaction or efficacy
                 sat_score, _ = TraitEngine.compute_trait_satisfaction(coalition, next_task)
-                step_cost = (1.0 - sat_score) / len(self.tasks)
+                step_score = efficacy_fn(coalition, next_task) if efficacy_fn is not None else sat_score
+                step_cost = (1.0 - step_score) / len(self.tasks)
                 child_g = current.g_cost + step_cost
                 child_f = child_g + child_h
 
@@ -347,12 +348,19 @@ class ITAGSSearch:
             solution_path.reverse()
 
             # Compute efficacy metrics
-            scores = [
-                TraitEngine.compute_trait_satisfaction(goal_node.assignments[t.id], t)[0]
-                for t in self.tasks
-            ]
+            if efficacy_fn is not None:
+                scores = [
+                    efficacy_fn(goal_node.assignments[t.id], t)
+                    for t in self.tasks
+                ]
+            else:
+                scores = [
+                    TraitEngine.compute_trait_satisfaction(goal_node.assignments[t.id], t)[0]
+                    for t in self.tasks
+                ]
             tot_eff = sum(scores)
             mean_eff = tot_eff / len(self.tasks) if self.tasks else 0.0
+
 
             return SearchResult(
                 solution_found=True,

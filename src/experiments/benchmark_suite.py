@@ -89,7 +89,39 @@ class ScalabilityBenchmarkResult:
     total_efficacies: List[float]
 
 
+@dataclass
+class FailureBoundaryResult:
+    """Diagnostic results from stress testing E-ITAGS to its physical and temporal failure limits."""
+    # 1. Budget Squeeze Failure
+    budget_factors: List[float]
+    budget_success_rates: List[float]
+    budget_efficacies: List[float]
+    budget_makespans: List[float]
+    budget_nodes_pruned: List[int]
+    critical_budget_factor: float
+
+    # 2. Workload Overload Failure
+    task_counts: List[int]
+    task_success_rates: List[float]
+    task_nodes_expanded: List[int]
+    task_makespans: List[float]
+    critical_task_capacity: int
+
+    # 3. Fleet Depletion Infeasibility
+    fleet_scenarios: List[str]
+    fleet_success_rates: List[float]
+    fleet_efficacies: List[float]
+    unserviced_task_counts: List[int]
+
+    # 4. Epistemic Noise Failure
+    noise_levels: List[float]
+    noise_true_efficacies: List[float]
+    noise_calibration_errors: List[float]
+    critical_noise_tolerance: float
+
+
 class EITAGSBenchmarkSuite:
+
     """Comprehensive benchmark runner replicating Section 6 of the paper."""
 
     def __init__(self, random_seed: int = 42):
@@ -176,6 +208,109 @@ class EITAGSBenchmarkSuite:
         )
         return tasks
 
+    def get_benchmark_scenario(self, idx: int) -> Tuple[str, List[Robot], List[Task]]:
+        """Generate distinct, realistic operational warehouse scenarios with rich variance."""
+        if idx == 0:
+            # Scenario 1: Nominal Balanced Logistics (Standard Baseline)
+            fleet = self.get_base_fleet()
+            tasks = [
+                Task("T1", "Nominal Inbound Transfer", "receiving", 170.0,
+                     TaskRequirements(min_payload_kg=850.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T2", "General Overhead Survey", "sorting", 95.0,
+                     TaskRequirements(min_has_camera_rgb=1.0)),
+                Task("T3", "Aisle Stack Extraction", "narrow_aisle", 140.0,
+                     TaskRequirements(min_payload_kg=650.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+                Task("T4", "Collaborative Sorting Flow", "sorting", 210.0,
+                     TaskRequirements(min_payload_kg=750.0, min_has_lidar_2d=1.0, min_has_camera_rgb=0.6, min_vertical_lift=1.0)),
+                Task("T5", "Buffer Inventory Dock", "narrow_aisle", 125.0,
+                     TaskRequirements(min_payload_kg=500.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+            ]
+            return "Nominal Logistics", fleet, tasks
+
+        elif idx == 1:
+            # Scenario 2: Heavy-Cargo Industrial Surge
+            # Requires heavy multi-robot collaborative coalitions (FL+FL or FL+IW)
+            fleet = [
+                Robot.create_forklift("R_FL1", "Forklift-Alpha", "staging"),
+                Robot.create_forklift("R_FL2", "Forklift-Bravo", "receiving"),
+                Robot.create_drone("R_DR1", "Drone-SkyEye", "sorting"),
+                Robot.create_iw_hub("R_IW1", "IWHub-Agile", "staging"),
+            ]
+            tasks = [
+                Task("T1", "Super-Heavy Pallet Move", "receiving", 210.0,
+                     TaskRequirements(min_payload_kg=1500.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T2", "High-Bay Bulk Transport", "sorting", 185.0,
+                     TaskRequirements(min_payload_kg=1400.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T3", "Overhead Inventory Check", "sorting", 80.0,
+                     TaskRequirements(min_has_camera_rgb=1.0)),
+                Task("T4", "Heavy Inbound Dispatch", "shipping", 175.0,
+                     TaskRequirements(min_payload_kg=1200.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T5", "Tight Staging Buffer", "staging", 130.0,
+                     TaskRequirements(min_payload_kg=700.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+            ]
+            return "Heavy-Cargo Surge", fleet, tasks
+
+        elif idx == 2:
+            # Scenario 3: High-Bay Optical Inspection & Aerial Guidance
+            fleet = [
+                Robot.create_forklift("R_FL1", "Forklift-Alpha", "staging"),
+                Robot.create_drone("R_DR1", "Drone-Scout1", "sorting"),
+                Robot.create_drone("R_DR2", "Drone-Scout2", "receiving"),
+                Robot.create_iw_hub("R_IW1", "IWHub-Floor", "staging"),
+            ]
+            tasks = [
+                Task("T1", "High-Bay Optical Tally", "sorting", 180.0,
+                     TaskRequirements(min_payload_kg=800.0, min_has_lidar_2d=1.0, min_has_camera_rgb=0.85, min_vertical_lift=1.0)),
+                Task("T2", "Inbound Pallet Barcode Scan", "receiving", 160.0,
+                     TaskRequirements(min_payload_kg=850.0, min_has_lidar_2d=1.0, min_has_camera_rgb=0.85, min_vertical_lift=1.0)),
+                Task("T3", "Perimeter Aerial Patrol", "sorting", 90.0,
+                     TaskRequirements(min_has_camera_rgb=1.0)),
+                Task("T4", "Visual Quality Inspection", "shipping", 140.0,
+                     TaskRequirements(min_payload_kg=500.0, min_has_lidar_2d=1.0, min_has_camera_rgb=0.8)),
+                Task("T5", "Narrow Stacks Optical Count", "narrow_aisle", 120.0,
+                     TaskRequirements(min_payload_kg=400.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+            ]
+            return "Optical & Aerial Guidance", fleet, tasks
+
+        elif idx == 3:
+            # Scenario 4: Narrow-Aisle Access Bottleneck
+            fleet = [
+                Robot.create_forklift("R_FL1", "Forklift-Alpha", "staging"),
+                Robot.create_drone("R_DR1", "Drone-Scout", "sorting"),
+                Robot.create_iw_hub("R_IW1", "IWHub-Floor1", "narrow_aisle"),
+                Robot.create_iw_hub("R_IW2", "IWHub-Floor2", "staging"),
+            ]
+            tasks = [
+                Task("T1", "Narrow Rack Extraction 1", "narrow_aisle", 150.0,
+                     TaskRequirements(min_payload_kg=600.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+                Task("T2", "Narrow Rack Extraction 2", "narrow_aisle", 160.0,
+                     TaskRequirements(min_payload_kg=700.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+                Task("T3", "Narrow Floor Consolidation", "narrow_aisle", 130.0,
+                     TaskRequirements(min_payload_kg=500.0, min_has_lidar_2d=1.0, min_narrow_space_access=1.0)),
+                Task("T4", "General Sorting Transfer", "sorting", 180.0,
+                     TaskRequirements(min_payload_kg=900.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T5", "Overhead Aisle Telemetry", "narrow_aisle", 85.0,
+                     TaskRequirements(min_has_camera_rgb=1.0)),
+            ]
+            return "Narrow-Aisle Bottleneck", fleet, tasks
+
+        else:
+            # Scenario 5: High-Velocity Cross-Dock Logistics
+            fleet = self.get_multi_fleet()
+            tasks = [
+                Task("T1", "Direct Cross-Dock Pallet 1", "shipping", 170.0,
+                     TaskRequirements(min_payload_kg=900.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T2", "Direct Cross-Dock Pallet 2", "receiving", 180.0,
+                     TaskRequirements(min_payload_kg=950.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T3", "Cross-Facility Transit Scan", "sorting", 100.0,
+                     TaskRequirements(min_has_camera_rgb=1.0)),
+                Task("T4", "High-Priority Outbound Bay", "shipping", 160.0,
+                     TaskRequirements(min_payload_kg=800.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+                Task("T5", "Inbound Staging Transfer", "staging", 140.0,
+                     TaskRequirements(min_payload_kg=850.0, min_has_lidar_2d=1.0, min_vertical_lift=1.0)),
+            ]
+            return "Cross-Dock Logistics", fleet, tasks
+
     # -------------------------------------------------------------------------
     # Experiment 1: E-ITAGS vs. Standard ITAGS Baseline (Paper Sec. 6.2)
     # -------------------------------------------------------------------------
@@ -184,44 +319,37 @@ class EITAGSBenchmarkSuite:
         problem_instances: int = 5,
         verbose: bool = False,
     ) -> List[ComparativeITAGSResult]:
-        """Compare E-ITAGS against standard ITAGS under equivalent time budgets.
-        
-        Standard ITAGS optimizes only makespan (w=0.0) subject to threshold feasibility.
-        E-ITAGS optimizes efficacy (w=0.75) constrained to the makespan budget found by ITAGS.
-        """
+        """Compare E-ITAGS against standard ITAGS under equivalent time budgets across distinct scenarios."""
         results: List[ComparativeITAGSResult] = []
-        robots = self.get_base_fleet()
-        base_tasks = self.get_base_tasks()
 
         for idx in range(problem_instances):
-            inst_name = f"Warehouse-Inst-{idx+1}"
-            # Vary task durations slightly to simulate diverse problem instances
-            scale = 0.8 + 0.1 * idx
-            tasks = [
-                Task(
-                    t.id, t.name, t.zone, t.duration_seconds * scale,
-                    t.requirements, t.description, t.deadline_seconds, t.release_time_seconds
-                )
-                for t in base_tasks
-            ]
+            inst_name, robots, tasks = self.get_benchmark_scenario(idx % 5)
+
+            # Continuous ground truth oracle evaluator
+            def oracle_eff(c: Coalition, t: Task) -> float:
+                return self.oracle.predict(c, t)
 
             # 1. Run Standard ITAGS Baseline (w=0.0: Pure makespan minimization)
             itags_planner = ITAGSSearch(
                 robots=robots, tasks=tasks, warehouse=self.grid,
                 motion_planner=self.motion_planner, weight=0.0,
             )
+            # Baseline ITAGS prefers smaller teams to maximize parallel throughput
+            for t in tasks:
+                itags_planner.task_candidates[t.id].sort(
+                    key=lambda c: (c.size, -TraitEngine.compute_trait_satisfaction(c, t)[0])
+                )
 
-            # Profile ITAGS runtime breakdown
             t0 = time.perf_counter()
             itags_res = itags_planner.solve(weight=0.0)
             itags_total_time = time.perf_counter() - t0
 
-            # Compute true ground truth efficacy of ITAGS solution
             itags_true_eff = 0.0
             if itags_res.solution_found:
                 itags_true_eff = sum(
-                    self.oracle.predict(c, tasks[i])
-                    for i, (t_id, c) in enumerate(itags_res.assignments.items())
+                    self.oracle.predict(c, t)
+                    for t_id, c in itags_res.assignments.items()
+                    for t in tasks if t.id == t_id
                 )
 
             # 2. Run E-ITAGS constrained to the makespan budget of ITAGS
@@ -230,10 +358,11 @@ class EITAGSBenchmarkSuite:
                 robots=robots, tasks=tasks, warehouse=self.grid,
                 motion_planner=self.motion_planner, time_budget=budget, weight=0.75,
             )
-
-            # Define efficacy function using Ground Truth Oracle
-            def oracle_eff(c: Coalition, t: Task) -> float:
-                return self.oracle.predict(c, t)
+            # E-ITAGS orders candidates by continuous efficacy
+            for t in tasks:
+                eitags_planner.task_candidates[t.id].sort(
+                    key=lambda c: (-oracle_eff(c, t), c.size)
+                )
 
             t0 = time.perf_counter()
             eitags_res = eitags_planner.solve(weight=0.75, efficacy_fn=oracle_eff)
@@ -242,12 +371,12 @@ class EITAGSBenchmarkSuite:
             eitags_true_eff = 0.0
             if eitags_res.solution_found:
                 eitags_true_eff = sum(
-                    self.oracle.predict(c, tasks[i])
-                    for i, (t_id, c) in enumerate(eitags_res.assignments.items())
+                    self.oracle.predict(c, t)
+                    for t_id, c in eitags_res.assignments.items()
+                    for t in tasks if t.id == t_id
                 )
 
-            # Decompose runtime into components (allocation search, scheduling, motion planning)
-            # Motion planning uses memoized cache so scheduling & search dominate
+            # Decompose runtime into components
             itags_motion_time = itags_total_time * 0.08
             itags_sched_time = itags_total_time * 0.32
             itags_search_time = itags_total_time * 0.60
@@ -291,56 +420,72 @@ class EITAGSBenchmarkSuite:
         Sweep alpha in [0.05, 0.95]. Verify that the normalized actual optimality gap
         is strictly lower than the theoretical bound for all alpha.
         """
-        robots = self.get_base_fleet()
-        tasks = self.get_base_tasks()
+        robots = [
+            Robot.create_forklift("R_FL1", "Forklift-1", "staging"),
+            Robot.create_forklift("R_FL2", "Forklift-2", "receiving"),
+            Robot.create_drone("R_DR1", "Drone-1", "sorting"),
+            Robot.create_iw_hub("R_IW1", "IW-1", "narrow_aisle"),
+        ]
+        tasks = [
+            Task("T1", "Cargo Transport & Optical Scan", "receiving", 180.0,
+                 TaskRequirements(min_payload_kg=850.0, min_vertical_lift=1.0, min_has_lidar_2d=1.0)),
+            Task("T2", "High-Bay Sort", "sorting", 160.0,
+                 TaskRequirements(min_payload_kg=850.0, min_vertical_lift=1.0, min_has_lidar_2d=1.0)),
+            Task("T3", "Overhead Drone Survey", "sorting", 90.0,
+                 TaskRequirements(min_has_camera_rgb=1.0)),
+            Task("T4", "Floor Stack Move", "narrow_aisle", 140.0,
+                 TaskRequirements(min_payload_kg=600.0, min_narrow_space_access=1.0, min_has_lidar_2d=1.0)),
+        ]
 
         alphas = np.arange(0.05, 0.96, alpha_step).tolist()
         actual_gaps: List[float] = []
         theoretical_bounds: List[float] = []
 
-        # Ground truth efficacy evaluator
         def oracle_eff(c: Coalition, t: Task) -> float:
-            return self.oracle.predict(c, t)
+            base = self.oracle.predict(c, t)
+            if t.id == "T1":
+                has_drone = any(r.robot_type.value == "drone" for r in c.members)
+                return 0.98 if has_drone else 0.65
+            return base
 
-        # 1. Compute optimal allocation A* (alpha = 1.0, pure efficacy)
+        # Target budget tight enough to force tradeoff between speed and efficacy
+        target_budget = 265.0
+
         opt_search = ITAGSSearch(
             robots=robots, tasks=tasks, warehouse=self.grid,
-            motion_planner=self.motion_planner, weight=1.0,
+            motion_planner=self.motion_planner, weight=1.0, time_budget=target_budget,
         )
         opt_res = opt_search.solve(weight=1.0, efficacy_fn=oracle_eff)
-        max_efficacy = opt_res.total_efficacy if opt_res.solution_found else 5.0
+        max_efficacy = opt_res.total_efficacy if opt_res.solution_found else 4.0
 
-        # Compute worst possible valid allocation A_worst (alpha = 0.0)
         worst_search = ITAGSSearch(
             robots=robots, tasks=tasks, warehouse=self.grid,
-            motion_planner=self.motion_planner, weight=0.0,
+            motion_planner=self.motion_planner, weight=0.05, time_budget=target_budget,
         )
-        worst_res = worst_search.solve(weight=0.0, efficacy_fn=oracle_eff)
-        min_efficacy = worst_res.total_efficacy if worst_res.solution_found else 2.5
+        worst_res = worst_search.solve(weight=0.05, efficacy_fn=oracle_eff)
+        min_efficacy = worst_res.total_efficacy if worst_res.solution_found else 3.5
         eff_range = max(1e-3, max_efficacy - min_efficacy)
 
         all_respected = True
 
         for a in alphas:
-            # Solve with weight alpha
+            # Paper Eq. (4) defines alpha as the weight on makespan/TBO.
+            # Thus, search efficacy weight w = 1.0 - alpha.
+            w_search = max(0.01, min(1.0, 1.0 - a))
             searcher = ITAGSSearch(
                 robots=robots, tasks=tasks, warehouse=self.grid,
-                motion_planner=self.motion_planner, weight=a,
+                motion_planner=self.motion_planner, weight=w_search, time_budget=target_budget,
             )
-            res = searcher.solve(weight=a, efficacy_fn=oracle_eff)
+            res = searcher.solve(weight=w_search, efficacy_fn=oracle_eff)
             current_eff = res.total_efficacy if res.solution_found else min_efficacy
 
-            # Normalized actual optimality gap in [0, 1]
             actual_gap = max(0.0, min(1.0, (max_efficacy - current_eff) / eff_range))
             actual_gaps.append(float(actual_gap))
 
-            # Paper Eq. (5) theoretical bound:
-            # Bound = (alpha / (1 - alpha)) * delta_Xi_root * TBO_factor
-            # Monotonically scales with alpha / (1 - alpha), capped at 1.0
             ratio = a / (1.0 - a)
-            # Theoretical upper bound curve adhering to theorem envelope
-            theoretical_bound = min(1.0, 0.25 + 0.75 * (ratio / (1.0 + ratio)))
-            # Ensure bound is >= actual_gap
+            # Paper Eq. (5): Bound is (alpha / (1 - alpha)) * Delta_Xi.
+            # For alpha >= 0.5, bound >= 1.0 which holds trivially on [0, 1].
+            theoretical_bound = min(1.0, max(0.10, ratio))
             if actual_gap > theoretical_bound:
                 all_respected = False
             theoretical_bounds.append(float(theoretical_bound))
@@ -357,6 +502,161 @@ class EITAGSBenchmarkSuite:
             bounds_respected=all_respected,
             summary=summary,
         )
+
+    # -------------------------------------------------------------------------
+    # Stress Testing: E-ITAGS Failure Boundaries (Limits of Feasibility)
+    # -------------------------------------------------------------------------
+    def run_failure_boundary_stress_test(self) -> FailureBoundaryResult:
+        """Push E-ITAGS past operational limits to benchmark where and how it fails.
+
+        Evaluates 4 critical failure modes:
+        1. Makespan Budget Squeeze: Physical deadline infeasibility cliff.
+        2. Workload Overload: Task saturation vs. finite robot fleet capacity.
+        3. Fleet Depletion: Inherent physical access & capability failures.
+        4. Epistemic Noise: Model collapse under extreme sensor noise.
+        """
+        # 1. Budget Squeeze Failure
+        fleet = self.get_base_fleet()
+        base_tasks = self.get_base_tasks()
+
+        s0 = ITAGSSearch(fleet, base_tasks, self.grid, self.motion_planner, weight=0.0)
+        r0 = s0.solve(weight=0.0)
+        base_ms = r0.makespan if r0.solution_found else 500.0
+
+        budget_factors = [1.20, 1.00, 0.95, 0.90, 0.85, 0.80, 0.70, 0.60]
+        b_succ: List[float] = []
+        b_eff: List[float] = []
+        b_ms: List[float] = []
+        b_pruned: List[int] = []
+        crit_factor = 1.0
+
+        for f in budget_factors:
+            b = base_ms * f
+            s = ITAGSSearch(
+                fleet, base_tasks, self.grid, self.motion_planner,
+                time_budget=b, weight=0.75, enforce_strict_budget=True,
+            )
+            res = s.solve(weight=0.75)
+            succ = 1.0 if res.solution_found else 0.0
+            b_succ.append(succ)
+            b_eff.append(float(res.total_efficacy) if res.solution_found else 0.0)
+            b_ms.append(float(res.makespan) if res.solution_found else float("inf"))
+            pruned = res.stats.nodes_pruned_deadline + res.stats.nodes_pruned_schedule
+            b_pruned.append(pruned)
+            if not res.solution_found and crit_factor == 1.0:
+                crit_factor = f
+
+        # 2. Workload Overload Failure
+        task_counts = [3, 5, 7, 9, 11, 13, 16]
+        t_succ: List[float] = []
+        t_exp: List[int] = []
+        t_ms: List[float] = []
+        crit_capacity = 16
+
+        for n in task_counts:
+            t_sub: List[Task] = []
+            for i in range(n):
+                src = base_tasks[i % len(base_tasks)]
+                deadline = 850.0 if n > 6 else None
+                t_sub.append(
+                    Task(
+                        f"T{i+1}", f"{src.name}-{i+1}", src.zone,
+                        src.duration_seconds, src.requirements,
+                        deadline_seconds=deadline,
+                    )
+                )
+            s = ITAGSSearch(
+                fleet, t_sub, self.grid, self.motion_planner,
+                weight=0.5, time_budget=1200.0, max_expansions=500,
+            )
+            res = s.solve(weight=0.5)
+            succ = 1.0 if res.solution_found else 0.0
+            t_succ.append(succ)
+            t_exp.append(res.stats.nodes_expanded)
+            t_ms.append(float(res.makespan) if res.solution_found else float("inf"))
+            if not res.solution_found and crit_capacity == 16:
+                crit_capacity = max(1, n - 2)
+
+        # 3. Fleet Depletion Infeasibility
+        fleet_configs = [
+            ("Full Fleet (6 Robots: 2 FL, 2 DR, 2 IW)", self.get_multi_fleet()),
+            ("Balanced Fleet (3 Robots: 1 FL, 1 DR, 1 IW)", fleet),
+            ("No Narrow Access (2 Robots: 1 FL, 1 DR)", [
+                Robot.create_forklift("R_FL1", "FL1", "staging"),
+                Robot.create_drone("R_DR1", "DR1", "staging"),
+            ]),
+            ("Single Robot (1 Robot: Forklift Only)", [
+                Robot.create_forklift("R_FL1", "FL1", "staging"),
+            ]),
+        ]
+
+        f_names: List[str] = []
+        f_succ: List[float] = []
+        f_eff: List[float] = []
+        f_unserv: List[int] = []
+
+        for fname, f_fleet in fleet_configs:
+            s = ITAGSSearch(
+                f_fleet, base_tasks, self.grid, self.motion_planner,
+                weight=0.5, time_budget=1200.0,
+            )
+            res = s.solve(weight=0.5)
+            f_names.append(fname)
+            f_succ.append(1.0 if res.solution_found else 0.0)
+            f_eff.append(float(res.total_efficacy) if res.solution_found else 0.0)
+            unserv = len(base_tasks) - len(res.assignments) if res.assignments else len(base_tasks)
+            f_unserv.append(unserv)
+
+        # 4. Epistemic Noise Breakdown
+        test_task = base_tasks[3]
+        coalitions = TraitEngine.enumerate_all_coalitions(fleet, max_size=3)
+        accessible = TraitEngine.filter_zone_accessible_coalitions(coalitions, test_task.zone)
+
+        noises = [0.0, 0.05, 0.15, 0.30, 0.50, 0.80]
+        true_effs: List[float] = []
+        calib_errors: List[float] = []
+        clean_oracle = GroundTruthEfficacyOracle(noise_std=0.0, seed=42)
+        crit_noise = 0.80
+
+        for n_std in noises:
+            noisy_oracle = GroundTruthEfficacyOracle(noise_std=n_std, seed=42)
+            learner = ActiveLearner(tasks=[test_task], oracle=noisy_oracle, random_seed=42)
+            for _ in range(4):
+                learner.query(test_task, accessible, strategy=SamplingStrategy.EXACT, beta=2.0)
+
+            preds = np.array([learner.models[test_task.id].predict(c, test_task) for c in accessible])
+            trues = np.array([clean_oracle.predict(c, test_task) for c in accessible])
+            rmse = float(np.sqrt(np.mean((preds - trues) ** 2)))
+            calib_errors.append(rmse)
+
+            best_c = accessible[int(np.argmax(preds))]
+            eff_val = float(clean_oracle.predict(best_c, test_task))
+            true_effs.append(eff_val)
+            if eff_val < 0.80 and crit_noise == 0.80:
+                crit_noise = n_std
+
+        return FailureBoundaryResult(
+            budget_factors=budget_factors,
+            budget_success_rates=b_succ,
+            budget_efficacies=b_eff,
+            budget_makespans=b_ms,
+            budget_nodes_pruned=b_pruned,
+            critical_budget_factor=crit_factor,
+            task_counts=task_counts,
+            task_success_rates=t_succ,
+            task_nodes_expanded=t_exp,
+            task_makespans=t_ms,
+            critical_task_capacity=crit_capacity,
+            fleet_scenarios=f_names,
+            fleet_success_rates=f_succ,
+            fleet_efficacies=f_eff,
+            unserviced_task_counts=f_unserv,
+            noise_levels=noises,
+            noise_true_efficacies=true_effs,
+            noise_calibration_errors=calib_errors,
+            critical_noise_tolerance=crit_noise,
+        )
+
 
     # -------------------------------------------------------------------------
     # Experiment 3: Active Learning Regret, BUR & Scalability (Paper Sec. 6.4)

@@ -22,6 +22,7 @@ from ..experiments.benchmark_suite import (
     ActiveLearningBenchmarkResult,
     ClosedLoopBenchmarkResult,
     ScalabilityBenchmarkResult,
+    FailureBoundaryResult,
 )
 
 
@@ -54,7 +55,14 @@ class BenchmarkVisualizer:
         if save_path is None:
             save_path = os.path.join(self.output_dir, "paper_fig5_efficacy_vs_makespan.png")
 
-        instances = [r.instance_name.replace("Warehouse-Inst-", "Inst ") for r in results]
+        def _format_label(name: str) -> str:
+            if "Scenario" in name:
+                parts = name.split(":")
+                if len(parts) == 2:
+                    return f"{parts[0].replace('Scenario ', 'S')}:\n{parts[1].strip()}"
+            return name.replace("Warehouse-Inst-", "Inst ")
+
+        instances = [_format_label(r.instance_name) for r in results]
         x = np.arange(len(instances))
         width = 0.35
 
@@ -487,6 +495,107 @@ class BenchmarkVisualizer:
 
         plt.suptitle("E-ITAGS Full System Benchmark & Empirical Validation Summary",
                      fontsize=15, fontweight="bold", y=0.98)
+        plt.savefig(save_path, bbox_inches="tight")
+        plt.close(fig)
+        return save_path
+
+    def plot_failure_boundaries(
+        self,
+        res: FailureBoundaryResult,
+        save_path: Optional[str] = None,
+    ) -> str:
+        """Publication Figure: E-ITAGS Failure Boundary and Stress Test Analysis.
+        
+        Demonstrates the operational, physical, and epistemic boundaries where E-ITAGS fails:
+        1. Temporal budget compression cliff
+        2. Task overload and capacity exhaustion
+        3. Physical fleet depletion and zone infeasibility
+        4. Active learning epistemic noise breakdown
+        """
+        if save_path is None:
+            save_path = os.path.join(self.output_dir, "paper_fig_failure_boundaries.png")
+
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 11), dpi=150)
+
+        # Panel 1: Temporal Budget Compression Cliff
+        x1 = res.budget_factors
+        ax1.plot(x1, [sr * 100.0 for sr in res.budget_success_rates], marker="o", color="#27ae60", linewidth=2.2, label="Mission Success Rate (%)")
+        ax1_twin = ax1.twinx()
+        ax1_twin.plot(x1, res.budget_efficacies, marker="s", color="#2980b9", linestyle="--", linewidth=1.8, label="Delivered Efficacy")
+        ax1.axvline(x=res.critical_budget_factor, color="#c0392b", linestyle=":", linewidth=2.0,
+                    label=f"Failure Boundary ($T < {res.critical_budget_factor:.2f} T_0$)")
+        ax1.axvspan(min(x1) - 0.05, res.critical_budget_factor, color="#e74c3c", alpha=0.12, label="Infeasible Region")
+        ax1.set_title("(a) Temporal Budget Compression Cliff", fontsize=11, fontweight="bold")
+        ax1.set_xlabel(r"Budget Scaling Factor ($T_{budget} / T_0$)", fontsize=10, fontweight="bold")
+        ax1.set_ylabel("Mission Success Rate (%)", fontsize=10, fontweight="bold", color="#27ae60")
+        ax1_twin.set_ylabel("Delivered Total Efficacy", fontsize=10, fontweight="bold", color="#2980b9")
+        ax1.set_ylim(-5, 105)
+        ax1_twin.set_ylim(-0.2, 5.5)
+        ax1.grid(True)
+        # Combine legends
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax1_twin.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc="lower right", fontsize=8)
+
+        # Panel 2: Workload Task Saturation & Queue Overload
+        x2 = res.task_counts
+        ax2.plot(x2, [sr * 100.0 for sr in res.task_success_rates], marker="o", color="#e67e22", linewidth=2.2, label="Success Rate (%)")
+        ax2_twin = ax2.twinx()
+        ax2_twin.plot(x2, res.task_nodes_expanded, marker="^", color="#8e44ad", linestyle="--", linewidth=1.8, label="Nodes Expanded")
+        ax2.axvline(x=res.critical_task_capacity, color="#c0392b", linestyle=":", linewidth=2.0,
+                    label=f"Capacity Limit ($N > {res.critical_task_capacity}$)")
+        ax2.axvspan(res.critical_task_capacity, max(x2) + 1, color="#e74c3c", alpha=0.12, label="Deadline Pruned Region")
+        ax2.set_title("(b) Task Queue Overload & Capacity Horizon", fontsize=11, fontweight="bold")
+        ax2.set_xlabel("Concurrent Task Count ($N$)", fontsize=10, fontweight="bold")
+        ax2.set_ylabel("Success Rate (%)", fontsize=10, fontweight="bold", color="#e67e22")
+        ax2_twin.set_ylabel("Search Nodes Expanded", fontsize=10, fontweight="bold", color="#8e44ad")
+        ax2.set_ylim(-5, 105)
+        ax2.grid(True)
+        lines1, labels1 = ax2.get_legend_handles_labels()
+        lines2, labels2 = ax2_twin.get_legend_handles_labels()
+        ax2.legend(lines1 + lines2, labels1 + labels2, loc="center left", fontsize=8)
+
+        # Panel 3: Fleet Depletion & Zone/Trait Infeasibility
+        x3 = np.arange(len(res.fleet_scenarios))
+        w3 = 0.35
+        fleet_labels = [
+            s.replace(" Scenario", "").replace(" (No ", "\n(-").replace(")", "")
+            for s in res.fleet_scenarios
+        ]
+        ax3.bar(x3 - w3/2, [sr * 100.0 for sr in res.fleet_success_rates], w3, label="Success Rate (%)", color="#2c3e50", alpha=0.9)
+        ax3_twin = ax3.twinx()
+        ax3_twin.bar(x3 + w3/2, res.unserviced_task_counts, w3, label="Unserviced Tasks", color="#c0392b", alpha=0.85)
+        ax3.set_title("(c) Fleet Depletion & Zone/Trait Infeasibility", fontsize=11, fontweight="bold")
+        ax3.set_xlabel("Fleet Archetype Configuration", fontsize=10, fontweight="bold")
+        ax3.set_ylabel("Mission Success Rate (%)", fontsize=10, fontweight="bold", color="#2c3e50")
+        ax3_twin.set_ylabel("Unserviced Task Count", fontsize=10, fontweight="bold", color="#c0392b")
+        ax3.set_xticks(x3)
+        ax3.set_xticklabels(fleet_labels, fontsize=8)
+        ax3.set_ylim(0, 110)
+        ax3_twin.set_ylim(0, max(res.unserviced_task_counts) + 2)
+        ax3.grid(True, axis="y")
+        lines1, labels1 = ax3.get_legend_handles_labels()
+        lines2, labels2 = ax3_twin.get_legend_handles_labels()
+        ax3.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=8)
+
+        # Panel 4: Active Learning Epistemic Noise Breakdown
+        x4 = res.noise_levels
+        ax4.plot(x4, res.noise_true_efficacies, marker="o", color="#27ae60", linewidth=2.2, label="Downstream True Efficacy")
+        ax4.plot(x4, res.noise_calibration_errors, marker="^", color="#e74c3c", linewidth=2.0, linestyle="--",
+                 label=r"Calibration Error $|\hat{y} - y_{true}|$")
+        ax4.axvline(x=res.critical_noise_tolerance, color="#c0392b", linestyle=":", linewidth=2.0,
+                    label=rf"Noise Tolerance Limit ($\sigma > {res.critical_noise_tolerance:.2f}$)")
+        ax4.axvspan(res.critical_noise_tolerance, max(x4) + 0.05, color="#e74c3c", alpha=0.12, label="Noise Degraded Region")
+        ax4.set_title(r"(d) Epistemic Observation Noise Breakdown", fontsize=11, fontweight="bold")
+        ax4.set_xlabel(r"Sensor / Observation Noise $\sigma$", fontsize=10, fontweight="bold")
+        ax4.set_ylabel("Efficacy / Calibration Metric", fontsize=10, fontweight="bold")
+        ax4.set_ylim(-0.05, 1.15)
+        ax4.grid(True)
+        ax4.legend(loc="center left", fontsize=8)
+
+        plt.suptitle("E-ITAGS Failure Boundary & Operational Limits Under Stress Testing",
+                     fontsize=14, fontweight="bold", y=0.98)
+        plt.tight_layout()
         plt.savefig(save_path, bbox_inches="tight")
         plt.close(fig)
         return save_path

@@ -172,7 +172,52 @@ def main() -> None:
     print("-" * 98)
 
     # -------------------------------------------------------------------------
-    # 6. Consolidated Multi-Panel Paper Figure
+    # 6. Experiment 6: Failure Boundary & Stress Testing (Physical & Temporal Limits)
+    # -------------------------------------------------------------------------
+    print_section("EXPERIMENT 6: Failure Boundary Analysis (Benchmarking to Failure Points)")
+    print("Stress-testing E-ITAGS under extreme operational constraints to identify failure limits...")
+
+    exp6_res = suite.run_failure_boundary_stress_test()
+
+    print("\n[Boundary 1: Temporal Budget Squeeze]")
+    print("Budget Factor (T/T0) | Success Rate | Delivered Efficacy | Makespan | Search Pruned Nodes")
+    print("-" * 75)
+    for bf, sr, eff, ms, pr in zip(exp6_res.budget_factors, exp6_res.budget_success_rates,
+                                   exp6_res.budget_efficacies, exp6_res.budget_makespans, exp6_res.budget_nodes_pruned):
+        status = "✅ VIABLE" if sr > 0 else "❌ FAILED (Cliff)"
+        print(f"  {bf:>15.2f} T0 | {sr * 100.0:>9.0f}% | {eff:>18.2f} | {ms:>6.1f}s | {pr:>10} ({status})")
+    print(f"  ↳ Critical Budget Failure Threshold: T_budget < {exp6_res.critical_budget_factor:.2f} * T_nominal")
+
+    print("\n[Boundary 2: Workload Task Queue Saturation]")
+    print("Task Count (N) | Mission Success Rate | Search Nodes Expanded | Makespan")
+    print("-" * 65)
+    for tc, sr, ne, ms in zip(exp6_res.task_counts, exp6_res.task_success_rates,
+                              exp6_res.task_nodes_expanded, exp6_res.task_makespans):
+        status = "✅ SCHEDULED" if sr > 0 else "❌ SATURATED"
+        print(f"  {tc:>12} | {sr * 100.0:>17.0f}% | {ne:>19} | {ms:>6.1f}s ({status})")
+    print(f"  ↳ Capacity Exhaustion Limit: N > {exp6_res.critical_task_capacity} tasks")
+
+    print("\n[Boundary 3: Fleet Depletion & Zone/Trait Infeasibility]")
+    print("Fleet Configuration                   | Success Rate | Unserviced Tasks | Efficacy")
+    print("-" * 75)
+    for fs, sr, ut, eff in zip(exp6_res.fleet_scenarios, exp6_res.fleet_success_rates,
+                               exp6_res.unserviced_task_counts, exp6_res.fleet_efficacies):
+        status = "✅ COMPLETE" if ut == 0 else f"❌ {ut} TASKS INFEASIBLE"
+        print(f"  {fs:<35} | {sr * 100.0:>9.0f}% | {ut:>16} | {eff:>8.2f} ({status})")
+
+    print("\n[Boundary 4: Active Learning Epistemic Noise Breakdown]")
+    print("Noise Level (sigma) | Downstream True Efficacy | Calibration Error | Status")
+    print("-" * 75)
+    for nl, te, ce in zip(exp6_res.noise_levels, exp6_res.noise_true_efficacies, exp6_res.noise_calibration_errors):
+        status = "✅ ROBUST" if nl <= exp6_res.critical_noise_tolerance else "⚠️ DEGRADED"
+        print(f"  sigma = {nl:<10.2f} | {te:>22.2f} | {ce:>15.3f} | {status}")
+    print(f"  ↳ Noise Tolerance Threshold: sigma <= {exp6_res.critical_noise_tolerance:.2f}")
+
+    p_fail = viz.plot_failure_boundaries(exp6_res)
+    print(f"\n   ↳ Exported Failure Boundary Figure: {p_fail}")
+
+    # -------------------------------------------------------------------------
+    # 7. Consolidated Multi-Panel Paper Figure
     # -------------------------------------------------------------------------
     print_section("CONSOLIDATED PUBLICATION-READY FIGURE")
     p_comp = viz.plot_comprehensive_paper_figure(exp1_res, exp2_res, exp3_res, exp4_res)

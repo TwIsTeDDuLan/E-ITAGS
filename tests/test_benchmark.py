@@ -10,6 +10,7 @@ from src.experiments.benchmark_suite import (
     ActiveLearningBenchmarkResult,
     ClosedLoopBenchmarkResult,
     ScalabilityBenchmarkResult,
+    FailureBoundaryResult,
 )
 from src.visualization.benchmark_viz import BenchmarkVisualizer
 
@@ -158,3 +159,71 @@ def test_benchmark_visualizations(suite, viz, tmp_path):
 
     p_comp = viz.plot_comprehensive_paper_figure(exp1_res, exp2_res, exp3_res, exp4_res)
     assert os.path.exists(p_comp) and os.path.getsize(p_comp) > 1000
+
+
+def test_distinct_benchmark_scenarios(suite):
+    """Test that all 5 benchmark scenarios are structurally diverse and distinct."""
+    scenarios = [suite.get_benchmark_scenario(i) for i in range(5)]
+    assert len(scenarios) == 5
+
+    names = [s[0] for s in scenarios]
+    assert len(set(names)) == 5  # All unique
+
+    # Check that scenarios possess different task requirement profiles and zones
+    heavy_cargo_tasks = scenarios[1][2]
+    optical_tasks = scenarios[2][2]
+    narrow_tasks = scenarios[3][2]
+
+    # Heavy cargo should have higher payload requirements (>=1200kg)
+    max_payload_heavy = max(t.requirements.min_payload_kg for t in heavy_cargo_tasks)
+    max_payload_optical = max(t.requirements.min_payload_kg for t in optical_tasks)
+    assert max_payload_heavy >= 1200.0
+    assert max_payload_optical < 1000.0
+
+    # Optical should require high camera RGB (>= 0.8) on multiple tasks
+    optical_cam_tasks = sum(1 for t in optical_tasks if t.requirements.min_has_camera_rgb >= 0.8)
+    heavy_cam_tasks = sum(1 for t in heavy_cargo_tasks if t.requirements.min_has_camera_rgb >= 0.8)
+    assert optical_cam_tasks >= 4
+    assert heavy_cam_tasks <= 1
+    assert optical_cam_tasks > heavy_cam_tasks
+
+    # Narrow should have multiple narrow_aisle tasks
+    narrow_aisle_count = sum(1 for t in narrow_tasks if t.zone == "narrow_aisle")
+    assert narrow_aisle_count >= 2
+
+
+def test_failure_boundary_stress_test(suite, viz):
+    """Test stress testing of E-ITAGS to its physical, temporal, and epistemic failure limits."""
+    res = suite.run_failure_boundary_stress_test()
+    assert isinstance(res, FailureBoundaryResult)
+
+    # 1. Budget Squeeze Failure
+    assert len(res.budget_factors) >= 5
+    assert res.critical_budget_factor > 0.0
+    # Must exhibit a failure cliff (1.0 when relaxed, 0.0 when compressed)
+    assert 1.0 in res.budget_success_rates
+    assert 0.0 in res.budget_success_rates
+
+    # 2. Task Queue Overload Failure
+    assert len(res.task_counts) >= 5
+    assert res.critical_task_capacity >= 5
+    assert 1.0 in res.task_success_rates
+    assert 0.0 in res.task_success_rates
+
+    # 3. Fleet Depletion Infeasibility
+    assert len(res.fleet_scenarios) == 4
+    # Full fleet must succeed with 0 unserviced tasks
+    assert res.fleet_success_rates[0] == 1.0
+    assert res.unserviced_task_counts[0] == 0
+    # Depleted fleet (e.g. without IW Hub) must have unserviced narrow aisle tasks
+    assert any(count > 0 for count in res.unserviced_task_counts)
+
+    # 4. Epistemic Noise Breakdown
+    assert len(res.noise_levels) >= 5
+    assert res.critical_noise_tolerance > 0.0
+    # Highest noise should have worse downstream true efficacy than zero noise
+    assert res.noise_true_efficacies[0] >= res.noise_true_efficacies[-1]
+
+    # 5. Visualization check
+    p_fail = viz.plot_failure_boundaries(res)
+    assert os.path.exists(p_fail) and os.path.getsize(p_fail) > 1000

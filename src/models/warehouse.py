@@ -1,7 +1,7 @@
 """Warehouse spatial representation and zones."""
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Union, Any, Set
 import numpy as np
 
 
@@ -134,3 +134,282 @@ class WarehouseGrid:
         loc2 = self.get_zone_center(to_zone)
         # Using 1 cell = 1 meter
         return loc1.euclidean_distance_to(loc2)
+
+    def render_grid(
+        self,
+        robot_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+        task_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+        path: Optional[List[Any]] = None,
+        show_legend: bool = True,
+        show_coordinates: bool = True,
+        use_color: bool = True,
+    ) -> str:
+        """Render the 2D floor grid as a formatted ASCII/Unicode string."""
+        return render_warehouse_grid(
+            warehouse=self,
+            robot_positions=robot_positions,
+            task_positions=task_positions,
+            path=path,
+            show_legend=show_legend,
+            show_coordinates=show_coordinates,
+            use_color=use_color,
+        )
+
+    def print_grid(
+        self,
+        robot_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+        task_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+        path: Optional[List[Any]] = None,
+        show_legend: bool = True,
+        show_coordinates: bool = True,
+        use_color: bool = True,
+    ) -> str:
+        """Print the 2D floor grid to stdout and return the rendered string."""
+        return print_warehouse_grid(
+            warehouse=self,
+            robot_positions=robot_positions,
+            task_positions=task_positions,
+            path=path,
+            show_legend=show_legend,
+            show_coordinates=show_coordinates,
+            use_color=use_color,
+        )
+
+
+def render_warehouse_grid(
+    warehouse: WarehouseGrid,
+    robot_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    task_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    path: Optional[List[Any]] = None,
+    show_legend: bool = True,
+    show_coordinates: bool = True,
+    use_color: bool = True,
+) -> str:
+    """Render a 2D ASCII/Unicode representation of the warehouse floor map.
+
+    Args:
+        warehouse: WarehouseGrid instance to visualize.
+        robot_positions: Optional mapping {robot_id: loc} or list of Robot models.
+        task_positions: Optional mapping {task_id: loc} or list of Task models.
+        path: Optional sequence of (x, y) coordinates or Location objects to overlay.
+        show_legend: Whether to include the zone, obstacle, and overlay legend.
+        show_coordinates: Whether to display coordinate axes on the perimeter.
+        use_color: Whether to use ANSI terminal colors (recommended for rich display).
+
+    Returns:
+        Formatted multi-line string representing the warehouse floor map.
+    """
+    RESET = "\033[0m" if use_color else ""
+    BOLD = "\033[1m" if use_color else ""
+    DIM = "\033[2m" if use_color else ""
+
+    ZONE_INFO = {
+        "receiving": ("\033[96m" if use_color else "", "R", "Receiving Dock"),
+        "sorting": ("\033[93m" if use_color else "", "S", "Automated Sorting"),
+        "staging": ("\033[95m" if use_color else "", "T", "Staging Floor"),
+        "narrow_aisle": ("\033[91m" if use_color else "", "N", "Narrow Aisle Stacks"),
+        "shipping": ("\033[92m" if use_color else "", "H", "Shipping Bays"),
+    }
+
+    # Normalize robot positions: dict of (x, y) -> (2-char display label, full name)
+    norm_robots: Dict[Tuple[int, int], Tuple[str, str]] = {}
+    if robot_positions:
+        if isinstance(robot_positions, dict):
+            for k, v in robot_positions.items():
+                coord = (v.x, v.y) if hasattr(v, "x") else tuple(v)
+                label = str(k)[:2]
+                norm_robots[coord] = (label, str(k))
+        elif isinstance(robot_positions, list):
+            for r in robot_positions:
+                label = getattr(r, "id", str(r))
+                if hasattr(r, "initial_zone") and r.initial_zone in warehouse.zones:
+                    loc = warehouse.zones[r.initial_zone].center
+                    coord = (loc.x, loc.y)
+                elif hasattr(r, "location"):
+                    loc = r.location
+                    coord = (loc.x, loc.y) if hasattr(loc, "x") else tuple(loc)
+                else:
+                    continue
+                norm_robots[coord] = (label[:2], label)
+
+    # Normalize task positions: dict of (x, y) -> (2-char display label, full name)
+    norm_tasks: Dict[Tuple[int, int], Tuple[str, str]] = {}
+    if task_positions:
+        if isinstance(task_positions, dict):
+            for k, v in task_positions.items():
+                coord = (v.x, v.y) if hasattr(v, "x") else tuple(v)
+                label = str(k)[:2]
+                norm_tasks[coord] = (label, str(k))
+        elif isinstance(task_positions, list):
+            for t in task_positions:
+                label = getattr(t, "id", str(t))
+                if hasattr(t, "zone") and t.zone in warehouse.zones:
+                    loc = warehouse.zones[t.zone].center
+                    coord = (loc.x, loc.y)
+                elif hasattr(t, "location"):
+                    loc = t.location
+                    coord = (loc.x, loc.y) if hasattr(loc, "x") else tuple(loc)
+                else:
+                    continue
+                norm_tasks[coord] = (label[:2], label)
+
+    # Normalize path waypoints
+    norm_path: set[Tuple[int, int]] = set()
+    if path:
+        for p in path:
+            coord = (p.x, p.y) if hasattr(p, "x") else tuple(p)
+            norm_path.add(coord)
+
+    center_lookup = { (z.center.x, z.center.y): (name, z) for name, z in warehouse.zones.items() }
+
+    lines: List[str] = []
+    lines.append(f"{BOLD}================================================================================{RESET}")
+    lines.append(f"{BOLD}  WAREHOUSE GRID FLOOR MAP ({warehouse.width}m × {warehouse.height}m = {warehouse.width * warehouse.height}m²){RESET}")
+    lines.append(f"{BOLD}================================================================================{RESET}")
+
+    if show_coordinates:
+        tens_header = "       " + "".join(f"{x // 10} " for x in range(warehouse.width))
+        units_header = "       " + "".join(f"{x % 10} " for x in range(warehouse.width))
+        lines.append(f"{DIM}{tens_header}{RESET}")
+        lines.append(f"{DIM}{units_header}{RESET}")
+
+    lines.append("     ┌" + "──" * warehouse.width + "┐")
+
+    for y in range(warehouse.height - 1, -1, -1):
+        row_str = f"  {y:>2} │" if show_coordinates else "     │"
+        for x in range(warehouse.width):
+            coord = (x, y)
+            if coord in norm_robots:
+                lbl, _ = norm_robots[coord]
+                disp = f"{lbl:<2}"[:2]
+                cell = f"\033[1;97;44m{disp}{RESET}" if use_color else disp
+            elif coord in norm_tasks:
+                lbl, _ = norm_tasks[coord]
+                disp = f"{lbl:<2}"[:2]
+                cell = f"\033[1;93;41m{disp}{RESET}" if use_color else disp
+            elif coord in norm_path:
+                cell = f"\033[1;92m··{RESET}" if use_color else "··"
+            elif coord in warehouse.obstacles:
+                cell = f"\033[90m██{RESET}" if use_color else "██"
+            elif coord in center_lookup:
+                z_name, z = center_lookup[coord]
+                color, code, _ = ZONE_INFO.get(z_name, ("", z_name[0].upper(), z_name))
+                cell = f"{BOLD}{color}{code}*{RESET}"
+            elif coord in warehouse._cell_to_zone:
+                z_name = warehouse._cell_to_zone[coord]
+                color, code, _ = ZONE_INFO.get(z_name, ("", z_name[0].upper(), z_name))
+                cell = f"{color}{code} {RESET}"
+            else:
+                cell = f"{DIM}· {RESET}" if use_color else "· "
+            row_str += cell
+        row_str += "│"
+        lines.append(row_str)
+
+    lines.append("     └" + "──" * warehouse.width + "┘")
+
+    if show_legend:
+        lines.append(f"\n{BOLD}ZONE & FEATURE LEGEND:{RESET}")
+        for z_name, (color, code, label) in ZONE_INFO.items():
+            if z_name in warehouse.zones:
+                z = warehouse.zones[z_name]
+                restriction = f" {BOLD}[Restricted: IW Hub Only]{RESET}" if z.narrow_access_only else ""
+                lines.append(f"  {color}[{code} ]{RESET} {label:<22} Center: {color}[{code}*]{RESET} at ({z.center.x:>2}, {z.center.y:>2})  Cells: {len(z.cells):>2}{restriction}")
+        lines.append(f"  {BOLD}\033[90m[██]{RESET} Impassable Obstacles   Count: {len(warehouse.obstacles):>2} cells (Storage Racks)" if use_color else f"  [██] Impassable Obstacles   Count: {len(warehouse.obstacles):>2} cells (Storage Racks)")
+        lines.append(f"  {DIM}[· ]{RESET} Open Transit Corridor  Robots navigate freely" if use_color else "  [· ] Open Transit Corridor  Robots navigate freely")
+        if norm_robots:
+            r_desc = ", ".join(f"{lbl} ({name}) at {c}" for c, (lbl, name) in norm_robots.items())
+            lines.append(f"  \033[1;97;44m[R#]\033[0m Robots Deployed: {r_desc}" if use_color else f"  [R#] Robots Deployed: {r_desc}")
+        if norm_tasks:
+            t_desc = ", ".join(f"{lbl} ({name}) at {c}" for c, (lbl, name) in norm_tasks.items())
+            lines.append(f"  \033[1;93;41m[T#]\033[0m Tasks Located:   {t_desc}" if use_color else f"  [T#] Tasks Located:   {t_desc}")
+        if norm_path:
+            lines.append(f"  \033[1;92m[··]\033[0m Navigation Path  Waypoints: {len(norm_path)} steps" if use_color else f"  [··] Navigation Path  Waypoints: {len(norm_path)} steps")
+        lines.append(f"{BOLD}--------------------------------------------------------------------------------{RESET}")
+
+    return "\n".join(lines)
+
+
+def print_warehouse_grid(
+    warehouse: WarehouseGrid,
+    robot_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    task_positions: Optional[Union[Dict[str, Any], List[Any]]] = None,
+    path: Optional[List[Any]] = None,
+    show_legend: bool = True,
+    show_coordinates: bool = True,
+    use_color: bool = True,
+) -> str:
+    """Print the 2D warehouse floor map to stdout and return the rendered string."""
+    output = render_warehouse_grid(
+        warehouse=warehouse,
+        robot_positions=robot_positions,
+        task_positions=task_positions,
+        path=path,
+        show_legend=show_legend,
+        show_coordinates=show_coordinates,
+        use_color=use_color,
+    )
+    print(output)
+    return output
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+    from pathlib import Path
+
+    # Ensure project root is on sys.path for direct script execution
+    project_root = Path(__file__).resolve().parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    parser = argparse.ArgumentParser(description="E-ITAGS 2D Warehouse Grid Printer")
+    parser.add_argument("--no-racks", action="store_true", help="Omit default warehouse storage racks")
+    parser.add_argument("--no-color", action="store_true", help="Disable ANSI color codes")
+    parser.add_argument("--no-legend", action="store_true", help="Omit zone and feature legend")
+    parser.add_argument("--no-coords", action="store_true", help="Omit coordinate axes")
+    parser.add_argument("--no-overlays", action="store_true", help="Omit robot, task, and path overlays")
+    args = parser.parse_args()
+
+    grid = WarehouseGrid()
+    if not args.no_racks:
+        grid.add_default_warehouse_racks()
+
+    sample_robots = None
+    sample_tasks = None
+    sample_path = None
+
+    if not args.no_overlays:
+        sample_robots = {
+            "FL": Location(5, 7),
+            "DR": Location(4, 15),
+            "IW": Location(5, 2),
+        }
+        sample_tasks = {
+            "T1": Location(4, 15),
+            "T2": Location(22, 15),
+        }
+        try:
+            from ..core.motion_planner import MotionPlanner
+            planner = MotionPlanner(grid)
+            res = planner.plan_path(Location(5, 7), Location(22, 15))
+            sample_path = res.path
+        except (ImportError, ValueError):
+            try:
+                from src.core.motion_planner import MotionPlanner
+                planner = MotionPlanner(grid)
+                res = planner.plan_path(Location(5, 7), Location(22, 15))
+                sample_path = res.path
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    grid.print_grid(
+        robot_positions=sample_robots,
+        task_positions=sample_tasks,
+        path=sample_path,
+        show_legend=not args.no_legend,
+        show_coordinates=not args.no_coords,
+        use_color=not args.no_color,
+    )
+
